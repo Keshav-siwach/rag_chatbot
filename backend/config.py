@@ -24,7 +24,7 @@ class Settings:
     faiss_index_path: Optional[str] = os.getenv("FAISS_INDEX_PATH")  # e.g., ./data/index.faiss
     docstore_path: Optional[str] = os.getenv("DOCSTORE_PATH")  # e.g., ./data/docstore.jsonl
     top_k: int = int(os.getenv("TOP_K", "5"))
-    retrieval_min_score: float = float(os.getenv("RETRIEVAL_MIN_SCORE", "0.2"))
+    retrieval_min_score: float = float(os.getenv("RETRIEVAL_MIN_SCORE", "0.3"))
 
     # LLM
     llm_provider: str = os.getenv("LLM_PROVIDER", "openai")  # 'openai' or 'huggingface' or 'dummy'

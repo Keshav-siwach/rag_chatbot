@@ -16,7 +16,7 @@ function Typing() {
   )
 }
 
-function MessageBubble({ content, role, onCopy, showTyping = false }) {
+function MessageBubble({ content, role, onCopy, showTyping = false, typingEffect = false }) {
   const [showCopy, setShowCopy] = useState(false)
   
   const handleCopy = async () => {
@@ -30,7 +30,7 @@ function MessageBubble({ content, role, onCopy, showTyping = false }) {
 
   return (
     <div 
-      className={`bubble ${role === 'user' ? 'bubble--user' : 'bubble--assistant'}`}
+      className={`bubble ${role === 'user' ? 'bubble--user' : 'bubble--assistant'} ${typingEffect ? 'typing-effect' : ''}`}
       onMouseEnter={() => setShowCopy(true)}
       onMouseLeave={() => setShowCopy(false)}
     >
@@ -51,7 +51,7 @@ function MessageBubble({ content, role, onCopy, showTyping = false }) {
   )
 }
 
-export default function ChatBox({ messages, typing }) {
+export default function ChatBox({ messages, typing, typingEffect }) {
   const endRef = useRef(null)
   const [copyFeedback, setCopyFeedback] = useState('')
   
@@ -76,13 +76,14 @@ export default function ChatBox({ messages, typing }) {
           index === messages.length - 1
         
         return (
-          <div key={m.id} className={`message ${m.role === 'user' ? 'message--user' : 'message--assistant'}`}>
+          <div key={m.id} className={`message ${m.role === 'user' ? 'message--user' : 'message--assistant'} ${typingEffect && isLastAssistantMessage ? 'typing-animation' : ''}`}>
             <Avatar role={m.role} />
             <MessageBubble 
               content={m.content} 
               role={m.role} 
               onCopy={handleCopy}
               showTyping={isLastAssistantMessage}
+              typingEffect={typingEffect && isLastAssistantMessage}
             />
           </div>
         )

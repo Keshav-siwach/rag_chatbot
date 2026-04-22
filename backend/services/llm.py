@@ -47,11 +47,101 @@ class LLMClient:
             yield token
 
     async def _dummy_stream(self, system_prompt: str, user_prompt: str) -> AsyncGenerator[str, None]:
-        text = (
-            "Here is a helpful answer based on the provided context. "
-            "(Note: Running in local dev mode without an external LLM API key.) "
-        )
-        combined = text + user_prompt
-        for i in range(0, len(combined), 8):
-            await asyncio.sleep(0.02)
-            yield combined[i : i + 8]
+        # Extract context and question from the prompt
+        import re
+        
+        # Extract context between <context> tags
+        context_match = re.search(r'<context>\n(.*?)\n</context>', user_prompt, re.DOTALL)
+        context_text = context_match.group(1).strip() if context_match else ""
+        
+        # Extract the actual question
+        question_match = re.search(r'User Question: (.+)', user_prompt)
+        actual_question = question_match.group(1).strip() if question_match else user_prompt
+        
+        # Handle follow-up questions
+        follow_up_phrases = ["tell me more", "explain more", "more info", "more information", "elaborate", "expand", "details", "continue", "go on"]
+        is_follow_up = any(phrase in actual_question.lower() for phrase in follow_up_phrases)
+        
+        if context_text:
+            if is_follow_up:
+                response = "Here's more information from your documents:\n\n"
+                bullet_points = self._get_clean_sentences(context_text, max_points=6)
+                for point in bullet_points:
+                    response += f"• {point}\n"
+            else:
+                response = f"Based on your uploaded documents, here's what I found about '{actual_question}':\n\n"
+                bullet_points = self._get_clean_sentences(context_text, max_points=5)
+                
+                for point in bullet_points:
+                    response += f"• {point}\n"
+                
+                if len(bullet_points) > 0:
+                    response += f"\nFound {len(bullet_points)} relevant points in your documents."
+                else:
+                    response += "No readable content found. Try rephrasing your question."
+        else:
+            response = f"I don't have information about '{actual_question}' in the uploaded documents."
+        
+        # Stream the response
+        words = response.split()
+        for i, word in enumerate(words):
+            await asyncio.sleep(0.03)
+            yield word + (" " if i < len(words) - 1 else "")
+
+    def _get_clean_sentences(self, text: str, max_points: int = 5) -> list:
+        """Get clean sentences from document text"""
+        import re
+        
+        # Split by common sentence endings
+        sentences = re.split(r'[.!?]+', text)
+        clean_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            
+            # Skip if too short or too long
+            if len(sentence) < 10 or len(sentence) > 200:
+                continue
+            
+            # Remove obvious technical symbols and fix spacing
+            cleaned = re.sub(r'[|∃∈∀∧∨¬→↔≤≥≠={}()[\]\\\\]', ' ', sentence)
+            cleaned = re.sub(r'\s+', ' ', cleaned)
+            cleaned = cleaned.strip()
+            
+            # Skip if still has weird patterns
+            if re.search(r'[a-z][A-Z][a-z]', cleaned):  # Mixed case patterns
+                continue
+            if re.search(r'\w\s\w\s\w\s\w\s\w\s\w', cleaned):  # Too many single letters
+                continue
+            
+            # Must have mostly letters
+            letter_count = sum(1 for c in cleaned if c.isalpha())
+            if letter_count < len(cleaned) * 0.6:  # At least 60% letters
+                continue
+            
+            # Must have normal words
+            words = cleaned.split()
+            if len(words) < 3:  # Need at least 3 words
+                continue
+            
+            # Check if words look normal (not just random characters)
+            normal_words = 0
+            for word in words:
+                if len(word) > 1 and word.isalpha():
+                    normal_words += 1
+            
+            if normal_words < len(words) * 0.5:  # At least 50% normal words
+                continue
+            
+            # Format it properly
+            cleaned = cleaned[0].upper() + cleaned[1:] if cleaned else cleaned
+            if not cleaned.endswith('.'):
+                cleaned += '.'
+            
+            # Avoid duplicates
+            if cleaned.lower() not in [s.lower() for s in clean_sentences]:
+                clean_sentences.append(cleaned)
+                if len(clean_sentences) >= max_points:
+                    break
+        
+        return clean_sentences
